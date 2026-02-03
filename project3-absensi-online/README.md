@@ -5,4 +5,4 @@ Web app sederhana untuk menyimpan pesan user ke Google Sheets.
 - Auto timestamp
 Google Sheets database
 ## Demo
-https://script.google.com/1YqdeZtxodvMk5cGJS8CJySX3AGKHr2ECRtrpVSPtXZI
+https://script.google.com/macros/s/AKfycbxlrO6I6BqnC0G9WGxFXpqB-JIlzkAr-QA-5ao1LSOe/dev
