@@ -1,84 +1,117 @@
-<style>
-/* =====================
-GLOBAL
-===================== */
-body {
-font-family: Arial, sans-serif;
-max-width: 600px;
-margin: 30px auto;
-color: #111827;
+/*************************
+* CONFIG
+*************************/
+const PROJECT_ID = 'project4-pengajuan-sql';
+const LOCATION = 'us';
+const DATASET_ID = 'app_pengajuan';
+const TABLE_MAHASISWA = 'data_mahasiswa';
+const SPREADSHEET_ID = '1MSaADOwQn_c6wVvPiDOrA_atS8cQQw8p57Y8hRp6RXg';
+const SHEET_PENGAJUAN = 'data_pengajuan';
+
+/*************************
+* BIGQUERY HELPER (READ)
+*************************/
+function runQuery(sql) {
+const request = {
+query: sql,
+useLegacySql: false,
+location: LOCATION
+};
+
+const res = BigQuery.Jobs.query(request, PROJECT_ID);
+return res.rows || [];
 }
-h3, h4 {
-margin-bottom: 10px;
+/*************************
+* WEB APP
+*************************/
+function doGet() {
+return HtmlService
+.createTemplateFromFile('index')
+.evaluate()
+.setTitle('Sistem Pengajuan Online');
 }
-/* =====================
-FORM
-===================== */
-input,
-select,
-textarea,
-button {
-width: 100%;
-padding: 8px;
-margin-bottom: 10px;
-box-sizing: border-box;
+
+function include(file) {
+return HtmlService
+.createHtmlOutputFromFile(file)
+.getContent();
 }
-textarea {
-min-height: 80px;
-resize: vertical;
+/*************************
+* LOGIN (BIGQUERY)
+*************************/
+function loginMahasiswa(nim) {
+const nimInt = Number(nim);
+if (!nimInt) {
+return { status: 'error', message: 'NIM tidak valid' };
 }
-button {
-cursor: pointer;
-background: #2563eb;
-color: #fff;
-border: none;
-border-radius: 6px;
+const sql = `
+SELECT nim, nama, prodi
+FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_MAHASISWA}\`
+WHERE nim = ${nimInt}
+LIMIT 1
+`;
+const rows = runQuery(sql);
+if (rows.length === 0) {
+return { status: 'error', message: 'NIM tidak terdaftar' };
 }
-button:hover {
-background: #1d4ed8;
+return {
+status: 'success',
+nim: rows[0].f[0].v,
+nama: rows[0].f[1].v,
+prodi: rows[0].f[2].v
+};
 }
-/* =====================
-NOTIFIKASI
-===================== */
-#notif {
-font-size: 0.9em;
+/*************************
+* SUBMIT PENGAJUAN (SHEET)
+*************************/
+function submitPengajuan(data) {
+if (!data || !data.nim || !data.jenis || !data.keterangan) {
+return { status: 'error', message: 'Data tidak lengkap' };
 }
-/* =====================
-TABLE
-===================== */
-table {
-border-collapse: collapse;
-margin-top: 10px;
+const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+const sheet = ss.getSheetByName(SHEET_PENGAJUAN);
+if (!sheet) {
+return { status: 'error', message: 'Sheet data_pengajuan tidak ditemukan' };
 }
-th, td {
-padding: 8px;
-border: 1px solid #e5e7eb;
-text-align: left;
+const id = 'PJ-' + Date.now();
+sheet.appendRow([
+id,
+Number(data.nim),
+data.jenis,
+data.keterangan,
+'Pending',
+new Date()
+]);
+return {
+status: 'success',
+message: 'Pengajuan berhasil disimpan'
+};
 }
-th {
-background: #f3f4f6;
-font-weight: bold;
+/*************************
+* RIWAYAT PENGAJUAN (SHEET)
+*************************/
+function getRiwayatPengajuan(nim) {
+const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+const sheet = ss.getSheetByName(SHEET_PENGAJUAN);
+const values = sheet.getDataRange().getValues();
+const hasil = [];
+for (let i = 1; i < values.length; i++) {
+const row = values[i];
+if (String(row[1]) !== String(nim)) continue;
+let tanggal = '-';
+if (row[5] instanceof Date) {
+tanggal = Utilities.formatDate(
+row[5],
+'Asia/Jakarta',
+'yyyy-MM-dd HH:mm'
+);
 }
-/* =====================
-STATUS BADGE
-===================== */
-.status {
-display: inline-block;
-padding: 4px 10px;
-border-radius: 12px;
-font-size: 0.85em;
-font-weight: 500;
+hasil.push({
+tanggal,
+jenis: row[2],
+keterangan: row[3],
+status: row[4]
+});
 }
-.status.pending {
-background: #fff3cd;
-color: #856404;
+return hasil.reverse();
 }
-.status.approved {
-background: #d4edda;
-color: #155724;
-}
-.status.rejected {
-background: #f8d7da;
-color: #721c24;
-}
-</style>
